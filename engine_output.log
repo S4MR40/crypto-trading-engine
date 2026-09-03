@@ -1,0 +1,13 @@
+nohup: ignoring input
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+==========================================
+   RUNNING PHASE 5 E2E EXECUTION SUITE    
+==========================================
+  -> Order Status for BTC/USDT: EXECUTED_PAPER | ID: paper_BTC_USDT_1001
+  -> Order Status for ETH/USDT: EXECUTED_PAPER | ID: paper_ETH_USDT_1001
+
+==========================================
+   PHASE 5 E2E SUITE COMPLETED SUCCESSFULLY!
+==========================================
+paper_trading=True
+

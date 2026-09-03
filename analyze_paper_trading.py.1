@@ -1,0 +1,112 @@
+import os
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+TRADES_CSV = "trades_log.csv"
+EQUITY_CSV = "equity_log.csv"
+
+def print_performance_metrics():
+    print("==========================================================")
+    print("          PAPER TRADING PERFORMANCE ANALYTICS             ")
+    print("==========================================================\n")
+
+    if not os.path.exists(TRADES_CSV) or os.path.getsize(TRADES_CSV) == 0:
+        print(f"⚠️ {TRADES_CSV} not found or empty.")
+        return
+
+    trades_df = pd.read_csv(TRADES_CSV)
+    
+    if trades_df.empty:
+        print("⚠️ No trade records found in trades_log.csv yet.")
+        return
+
+    exits = trades_df[trades_df['event_type'].str.startswith('EXIT', na=False)].copy()
+    
+    if exits.empty:
+        print("⚠️ No closed trades recorded yet in trades_log.csv.")
+        return
+
+    exits['pnl_usd'] = pd.to_numeric(exits['pnl_usd'], errors='coerce').fillna(0.0)
+
+    total_trades = len(exits)
+    winning_trades = exits[exits['pnl_usd'] > 0]
+    losing_trades = exits[exits['pnl_usd'] < 0]
+
+    num_wins = len(winning_trades)
+    num_losses = len(losing_trades)
+    win_rate = (num_wins / total_trades) * 100 if total_trades > 0 else 0.0
+
+    gross_profit = winning_trades['pnl_usd'].sum()
+    gross_loss = abs(losing_trades['pnl_usd'].sum())
+    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+
+    net_pnl = exits['pnl_usd'].sum()
+    avg_win = winning_trades['pnl_usd'].mean() if num_wins > 0 else 0.0
+    avg_loss = losing_trades['pnl_usd'].mean() if num_losses > 0 else 0.0
+
+    print("📊 TRADE METRICS")
+    print(f"  • Total Closed Trades : {total_trades}")
+    print(f"  • Wins / Losses       : {num_wins} W / {num_losses} L")
+    print(f"  • Win Rate            : {win_rate:.2f}%")
+    print(f"  • Profit Factor       : {profit_factor:.2f}")
+    print(f"  • Net Realized PnL    : ${net_pnl:+.2f}")
+    print(f"  • Avg Win / Avg Loss  : ${avg_win:+.2f} / ${avg_loss:+.2f}\n")
+
+    print("🎯 PERFORMANCE BY STRATEGY")
+    strat_grouped = exits.groupby('strategy')
+    for strat, group in strat_grouped:
+        s_wins = len(group[group['pnl_usd'] > 0])
+        s_total = len(group)
+        s_wr = (s_wins / s_total) * 100
+        s_pnl = group['pnl_usd'].sum()
+        print(f"  • {strat:24s} | Trades: {s_total:2d} | Win Rate: {s_wr:6.2f}% | PnL: ${s_pnl:+.2f}")
+    print("\n" + "="*58)
+
+def plot_equity_curve():
+    if not os.path.exists(EQUITY_CSV) or os.path.getsize(EQUITY_CSV) == 0:
+        print(f"⚠️ {EQUITY_CSV} not found or empty.")
+        return
+
+    df = pd.read_csv(EQUITY_CSV)
+
+    if df.empty or len(df) < 1:
+        print("⚠️ equity_log.csv has no data points recorded yet. Let the paper trading engine run first!")
+        return
+
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df = df.sort_values('timestamp').reset_index(drop=True)
+
+    df['peak_equity'] = df['total_equity'].cummax()
+    df['drawdown_pct'] = np.where(df['peak_equity'] > 0, ((df['total_equity'] - df['peak_equity']) / df['peak_equity']) * 100, 0.0)
+
+    max_dd = df['drawdown_pct'].min()
+    current_equity = df['total_equity'].iloc[-1]
+    initial_equity = df['realized_balance'].iloc[0]
+    total_return = ((current_equity - initial_equity) / initial_equity) * 100 if initial_equity > 0 else 0.0
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 7), sharex=True, gridspec_kw={'height_ratios': [3, 1]})
+    
+    ax1.plot(df['timestamp'], df['total_equity'], color='#00d1b2', linewidth=2, label='Total Equity (USD)')
+    ax1.plot(df['timestamp'], df['realized_balance'], color='#3273dc', linestyle='--', alpha=0.7, label='Realized Balance')
+    ax1.set_title(f"Account Equity Growth (Return: {total_return:+.2f}% | Max Drawdown: {max_dd:.2f}%)", fontsize=14, fontweight='bold', pad=10)
+    ax1.set_ylabel("Account Value ($)", fontsize=11)
+    ax1.grid(True, linestyle=':', alpha=0.6)
+    ax1.legend(loc='upper left')
+
+    ax2.fill_between(df['timestamp'], df['drawdown_pct'], 0, color='#ff3860', alpha=0.4, label='Drawdown %')
+    ax2.plot(df['timestamp'], df['drawdown_pct'], color='#ff3860', linewidth=1)
+    ax2.set_ylabel("Drawdown %", fontsize=11)
+    ax2.set_xlabel("Time", fontsize=11)
+    ax2.grid(True, linestyle=':', alpha=0.6)
+    ax2.legend(loc='lower left')
+
+    plt.tight_layout()
+    chart_file = "equity_curve.png"
+    plt.savefig(chart_file, dpi=300)
+    print(f"📈 Chart successfully saved as '{chart_file}'.")
+
+if __name__ == "__main__":
+    print_performance_metrics()
+    plot_equity_curve()
+    
